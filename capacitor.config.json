@@ -1,8 +1,5 @@
 {
   "appId": "com.ndjlib.archiver",
   "appName": "SuperArchiver",
-  "webDir": "www",
-  "server": {
-    "androidScheme": "https"
-  }
+  "webDir": "www"
 }
