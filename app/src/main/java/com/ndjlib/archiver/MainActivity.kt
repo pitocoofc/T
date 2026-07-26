@@ -6,11 +6,16 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.webkit.MimeTypeMap
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.io.File
 
@@ -32,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         fabAdd.setOnClickListener {
-            Toast.makeText(this, "Criar nova pasta / arquivo", Toast.LENGTH_SHORT).show()
+            dialogCriarPasta()
         }
 
         verificarEPedirPermissao()
@@ -55,7 +60,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun carregarArquivos() {
         if (!diretorioAtual.canRead()) {
-            Toast.makeText(this, "Sem permissão de leitura nesta pasta", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Sem permissão de leitura", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -64,12 +69,10 @@ class MainActivity : AppCompatActivity() {
         val arquivos = diretorioAtual.listFiles()
         val listaItens = mutableListOf<FileModel>()
 
-        // Opção '..' para voltar
         if (diretorioAtual != Environment.getExternalStorageDirectory() && diretorioAtual.parentFile != null) {
             listaItens.add(FileModel(diretorioAtual.parentFile!!, isBackOption = true))
         }
 
-        // Ordena: Pastas primeiro, depois Arquivos
         arquivos?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))?.forEach { file ->
             listaItens.add(FileModel(file))
         }
@@ -82,9 +85,106 @@ class MainActivity : AppCompatActivity() {
                 diretorioAtual = item.file
                 carregarArquivos()
             } else {
-                Toast.makeText(this, "Arquivo: ${item.file.name}", Toast.LENGTH_SHORT).show()
+                exibirOpcoesArquivo(item.file)
             }
         }
+    }
+
+    // Modal de Opções estilo ZArchiver ao clicar em um arquivo
+    private fun exibirOpcoesArquivo(file: File) {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_file_options, null)
+        dialog.setContentView(view)
+
+        view.findViewById<TextView>(R.id.txtOptionTitle).text = file.name
+
+        // Option 1: Abrir
+        view.findViewById<TextView>(R.id.optOpen).setOnClickListener {
+            dialog.dismiss()
+            abrirArquivo(file)
+        }
+
+        // Option 2: Renomear
+        view.findViewById<TextView>(R.id.optRename).setOnClickListener {
+            dialog.dismiss()
+            dialogRenomear(file)
+        }
+
+        // Option 3: Excluir
+        view.findViewById<TextView>(R.id.optDelete).setOnClickListener {
+            dialog.dismiss()
+            if (file.delete()) {
+                Toast.makeText(this, "Excluído com sucesso", Toast.LENGTH_SHORT).show()
+                carregarArquivos()
+            } else {
+                Toast.makeText(this, "Erro ao excluir", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        dialog.show()
+    }
+
+    // Abertura nativa via FileProvider
+    private fun abrirArquivo(file: File) {
+        try {
+            val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
+            val extension = MimeTypeMap.getFileExtensionFromUrl(file.name)
+            val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase()) ?: "*/*"
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Nenhum app encontrado para abrir este arquivo", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Dialog para Criar Nova Pasta
+    private fun dialogCriarPasta() {
+        val input = EditText(this)
+        input.hint = "Nome da Pasta"
+
+        AlertDialog.Builder(this)
+            .setTitle("Nova Pasta")
+            .setView(input)
+            .setPositiveButton("Criar") { _, _ ->
+                val nome = input.text.toString().trim()
+                if (nome.isNotEmpty()) {
+                    val novaPasta = File(diretorioAtual, nome)
+                    if (novaPasta.mkdir()) {
+                        carregarArquivos()
+                    } else {
+                        Toast.makeText(this, "Erro ao criar pasta", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    // Dialog para Renomear Arquivo/Pasta
+    private fun dialogRenomear(file: File) {
+        val input = EditText(this)
+        input.setText(file.name)
+
+        AlertDialog.Builder(this)
+            .setTitle("Renomear")
+            .setView(input)
+            .setPositiveButton("Salvar") { _, _ ->
+                val novoNome = input.text.toString().trim()
+                if (novoNome.isNotEmpty()) {
+                    val destino = File(file.parent, novoNome)
+                    if (file.renameTo(destino)) {
+                        carregarArquivos()
+                    } else {
+                        Toast.makeText(this, "Erro ao renomear", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     override fun onResume() {
