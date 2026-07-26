@@ -18,11 +18,8 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Dar permissão de execução ao Gradle
-        run: chmod +x gradlew
-
+      # Roda o Gradle nativo instalado na máquina virtual do GitHub
       - name: Compilar APK Debug
         run: gradle assembleDebug
 
