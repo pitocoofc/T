@@ -27,10 +27,15 @@ jobs:
       - name: Instalar Dependências
         run: npm install
 
-      - name: Adicionar Plataforma Android se não existir
+      - name: Sincronizar Plataforma Android
         run: |
           npx cap add android || true
           npx cap sync android
+
+      # --- NOVO PASSO: Injeta o Manifest com as Permissões ---
+      - name: Injetar AndroidManifest.xml com permissões
+        run: |
+          cp AndroidManifest.xml android/app/src/main/AndroidManifest.xml
 
       - name: Gerar APK no Gradle
         run: |
