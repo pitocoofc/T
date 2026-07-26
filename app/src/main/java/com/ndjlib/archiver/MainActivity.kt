@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         fabAdd.setOnClickListener {
-            dialogCriarPasta()
+            exibirMenuCriar()
         }
 
         verificarEPedirPermissao()
@@ -90,7 +90,26 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Modal de Opções estilo ZArchiver ao clicar em um arquivo
+    // Menu do Botão (+) estilo ZArchiver
+    private fun exibirMenuCriar() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_create_menu, null)
+        dialog.setContentView(view)
+
+        view.findViewById<TextView>(R.id.optCreateFolder).setOnClickListener {
+            dialog.dismiss()
+            dialogCriarPasta()
+        }
+
+        view.findViewById<TextView>(R.id.optCreateFile).setOnClickListener {
+            dialog.dismiss()
+            dialogCriarArquivo()
+        }
+
+        dialog.show()
+    }
+
+    // Modal de Opções do Arquivo
     private fun exibirOpcoesArquivo(file: File) {
         val dialog = BottomSheetDialog(this)
         val view = layoutInflater.inflate(R.layout.dialog_file_options, null)
@@ -98,19 +117,23 @@ class MainActivity : AppCompatActivity() {
 
         view.findViewById<TextView>(R.id.txtOptionTitle).text = file.name
 
-        // Option 1: Abrir
+        // Abrir (Verifica se é texto pra usar o editor próprio ou sistema externo)
         view.findViewById<TextView>(R.id.optOpen).setOnClickListener {
             dialog.dismiss()
-            abrirArquivo(file)
+            if (isTextFile(file)) {
+                abrirEditorTextoProprio(file)
+            } else {
+                abrirArquivoExterno(file)
+            }
         }
 
-        // Option 2: Renomear
+        // Renomear
         view.findViewById<TextView>(R.id.optRename).setOnClickListener {
             dialog.dismiss()
             dialogRenomear(file)
         }
 
-        // Option 3: Excluir
+        // Excluir
         view.findViewById<TextView>(R.id.optDelete).setOnClickListener {
             dialog.dismiss()
             if (file.delete()) {
@@ -124,8 +147,19 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    // Abertura nativa via FileProvider
-    private fun abrirArquivo(file: File) {
+    private fun isTextFile(file: File): Boolean {
+        val exts = listOf("txt", "html", "htm", "json", "xml", "log", "js", "css", "py", "kt", "java", "c", "cpp")
+        return exts.contains(file.extension.lowercase())
+    }
+
+    private fun abrirEditorTextoProprio(file: File) {
+        val intent = Intent(this, TextEditorActivity::class.java).apply {
+            putExtra("FILE_PATH", file.absolutePath)
+        }
+        startActivity(intent)
+    }
+
+    private fun abrirArquivoExterno(file: File) {
         try {
             val uri = FileProvider.getUriForFile(this, "$packageName.provider", file)
             val extension = MimeTypeMap.getFileExtensionFromUrl(file.name)
@@ -137,11 +171,10 @@ class MainActivity : AppCompatActivity() {
             }
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "Nenhum app encontrado para abrir este arquivo", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Erro ao abrir arquivo", Toast.LENGTH_SHORT).show()
         }
     }
 
-    // Dialog para Criar Nova Pasta
     private fun dialogCriarPasta() {
         val input = EditText(this)
         input.hint = "Nome da Pasta"
@@ -164,7 +197,33 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // Dialog para Renomear Arquivo/Pasta
+    private fun dialogCriarArquivo() {
+        val input = EditText(this)
+        input.hint = "nome_do_arquivo.txt"
+
+        AlertDialog.Builder(this)
+            .setTitle("Novo Arquivo")
+            .setView(input)
+            .setPositiveButton("Criar") { _, _ ->
+                val nome = input.text.toString().trim()
+                if (nome.isNotEmpty()) {
+                    val novoArquivo = File(diretorioAtual, nome)
+                    try {
+                        if (novoArquivo.createNewFile()) {
+                            carregarArquivos()
+                            abrirEditorTextoProprio(novoArquivo)
+                        } else {
+                            Toast.makeText(this, "Arquivo já existe ou erro ao criar", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(this, "Erro ao criar arquivo: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
     private fun dialogRenomear(file: File) {
         val input = EditText(this)
         input.setText(file.name)
