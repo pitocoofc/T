@@ -27,24 +27,22 @@ jobs:
       - name: Instalar Dependências
         run: npm install
 
-      - name: Sincronizar Plataforma Android
+      - name: Criar projeto Android
         run: |
           npx cap add android || true
           npx cap sync android
 
-      # --- INJEÇÃO FORÇADA DE MANIFESTO PARA MIUI / ANDROID 11+ ---
-      - name: Sobrescrever AndroidManifest.xml com Permissões Totais
+      # --- INJEÇÃO NO MANIFESTO PRINCIPAL DO PROJETO ---
+      - name: Injetar Permissões no AndroidManifest.xml
         run: |
           cat << 'EOF' > android/app/src/main/AndroidManifest.xml
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               xmlns:tools="http://schemas.android.com/tools">
 
-              <!-- Permissões Padrão -->
+              <!-- Permissões Obrigatórias -->
               <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
               <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-              
-              <!-- Permissão Crítica do Android 11+ (MANAGE_EXTERNAL_STORAGE) -->
               <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
 
               <application
@@ -71,9 +69,13 @@ jobs:
 
                   </activity>
               </application>
-
           </manifest>
           EOF
+
+      # --- GARANTE QUE O GRADLE AUMENTA A COMPATIBILIDADE (Target SDK 33/34) ---
+      - name: Ajustar targetSdkVersion no build.gradle
+        run: |
+          sed -i 's/targetSdkVersion .*/targetSdkVersion 33/g' android/app/build.gradle || true
 
       - name: Gerar APK no Gradle
         run: |
