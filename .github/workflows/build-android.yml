@@ -19,7 +19,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      # Roda o Gradle nativo instalado na máquina virtual do GitHub
+      # Instala o Gradle 8.5 correto e compatível
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.5'
+
       - name: Compilar APK Debug
         run: gradle assembleDebug
 
