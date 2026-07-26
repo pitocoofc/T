@@ -51,56 +51,54 @@
 
   <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
   <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
+ <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
   <script>
     let caminhoAtual = '';
 
-    // Pegando elementos da tela
     const elList = document.getElementById('file-list');
     const elPath = document.getElementById('current-path');
     const btnBack = document.getElementById('btn-back');
 
-    // Função para verificar e pedir permissão de arquivos
-    async function checarPermissoes() {
+    // Função reforçada de solicitação de permissão
+    async function garantirPermissoes() {
       const { Filesystem } = window.Capacitor?.Plugins || {};
-      if (!Filesystem) return true; // Rodando no browser
+      if (!Filesystem) return true; // Rodando no navegador de testes
 
       try {
-        // Verifica o status atual da permissão
+        // 1. Checa a permissão padrão do Capacitor
         let check = await Filesystem.checkPermissions();
         
-        // Se não tiver concedido, solicita
         if (check.publicStorage !== 'granted') {
           let request = await Filesystem.requestPermissions();
           if (request.publicStorage !== 'granted') {
-            alert('A permissão de armazenamento é obrigatória para usar o gerenciador!');
+            alert('⚠️ Permissão negada!\n\nSe o seu Android for versão 11 ou superior, vá nas Configurações do Celular > Aplicativos > Super Archiver > Permissões > Armazenamento e selecione "Permitir gerenciamento de TODOS os arquivos".');
             return false;
           }
         }
         return true;
       } catch (e) {
-        console.error('Erro ao gerenciar permissões:', e);
-        return true; // Tenta prosseguir mesmo assim caso o plugin trate diferente
+        console.error('Erro ao checar/pedir permissões:', e);
+        return true;
       }
     }
 
-    // Função principal para carregar o diretório
+    // Função principal para carregar os arquivos da pasta
     async function carregarPasta(caminho = '') {
       try {
         const { Filesystem, Directory } = window.Capacitor?.Plugins || {};
 
         if (!Filesystem) {
-          console.warn('Rodando no navegador sem suporte ao sistema de arquivos nativo.');
+          console.warn('Executando fora do ambiente nativo do Capacitor.');
           return;
         }
 
-        // Garante que temos permissão antes de tentar ler
-        const temPermissao = await checarPermissoes();
+        const temPermissao = await garantirPermissoes();
         if (!temPermissao) return;
 
         caminhoAtual = caminho;
         elPath.innerText = `/storage/emulated/0/${caminho}`;
 
-        // Lê a pasta no armazenamento externo
+        // Tenta ler o diretório
         const res = await Filesystem.readdir({
           path: caminho,
           directory: Directory.External
@@ -108,7 +106,12 @@
 
         elList.innerHTML = '';
 
-        // Renderiza cada arquivo/pasta
+        if (!res.files || res.files.length === 0) {
+          elList.innerHTML = '<li class="file-item" style="justify-content:center; color:#777;">Pasta vazia ou sem acesso.</li>';
+          return;
+        }
+
+        // Renderiza arquivos e pastas
         res.files.forEach(file => {
           const li = document.createElement('li');
           li.className = 'file-item';
@@ -124,7 +127,6 @@
             </div>
           `;
 
-          // Clique no item da lista
           li.onclick = () => {
             if (isFolder) {
               const novoCaminho = caminho ? `${caminho}/${file.name}` : file.name;
@@ -136,12 +138,14 @@
         });
 
       } catch (err) {
-        console.error('Erro ao ler pasta:', err);
-        alert('Erro ao acessar pasta. Verifique as permissões.');
+        console.error('Erro ao ler diretório:', err);
+        
+        // Trata a exceção clássica de falta de acesso total no Android 11+
+        alert('❌ Não foi possível listar os arquivos.\n\nNo Android 11+, o sistema exige liberação manual de "Acesso a todos os arquivos".\n\nVá em: Configurações do celular > Apps > Super Archiver > Permissões > Armazenamento.');
       }
     }
 
-    // Botão Voltar
+    // Botão de Voltar
     btnBack.onclick = () => {
       if (!caminhoAtual) return;
       const partes = caminhoAtual.split('/');
@@ -149,9 +153,9 @@
       carregarPasta(partes.join('/'));
     };
 
-    // Inicialização ao carregar a página
+    // Inicialização do App
     document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(() => carregarPasta(), 500);
+      setTimeout(() => carregarPasta(), 400);
     });
   </script>
 </body>
