@@ -6,34 +6,33 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
-import android.widget.ArrayAdapter
-import android.widget.ListView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var listView: ListView
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var txtCurrentPath: TextView
+    private lateinit var fabAdd: FloatingActionButton
     private var diretorioAtual: File = Environment.getExternalStorageDirectory()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        listView = findViewById(R.id.fileListView)
+        recyclerView = findViewById(R.id.recyclerViewFiles)
+        txtCurrentPath = findViewById(R.id.txtCurrentPath)
+        fabAdd = findViewById(R.id.fabAdd)
 
-        // Ao clicar num item da lista
-        listView.setOnItemClickListener { _, _, position, _ ->
-            val arquivoSelecionado = listView.adapter.getItem(position) as String
-            val novoCaminho = File(diretorioAtual, arquivoSelecionado)
+        recyclerView.layoutManager = LinearLayoutManager(this)
 
-            if (novoCaminho.isDirectory) {
-                diretorioAtual = novoCaminho
-                carregarArquivos()
-            } else {
-                Toast.makeText(this, "Arquivo: ${novoCaminho.name}", Toast.LENGTH_SHORT).show()
-            }
+        fabAdd.setOnClickListener {
+            Toast.makeText(this, "Criar nova pasta / arquivo", Toast.LENGTH_SHORT).show()
         }
 
         verificarEPedirPermissao()
@@ -60,21 +59,32 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        txtCurrentPath.text = diretorioAtual.absolutePath.replace("/storage/emulated/0", "0")
+
         val arquivos = diretorioAtual.listFiles()
-        val listaNomes = mutableListOf<String>()
+        val listaItens = mutableListOf<FileModel>()
 
-        // Opção de voltar pasta se não estiver na raiz
-        if (diretorioAtual.parentFile != null && diretorioAtual != Environment.getExternalStorageDirectory()) {
-            listaNomes.add(".. (Voltar)")
+        // Opção '..' para voltar
+        if (diretorioAtual != Environment.getExternalStorageDirectory() && diretorioAtual.parentFile != null) {
+            listaItens.add(FileModel(diretorioAtual.parentFile!!, isBackOption = true))
         }
 
-        arquivos?.sortedBy { !it.isDirectory }?.forEach { file ->
-            val prefixo = if (file.isDirectory) "📁 " else "📄 "
-            listaNomes.add(prefixo + file.name)
+        // Ordena: Pastas primeiro, depois Arquivos
+        arquivos?.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() }))?.forEach { file ->
+            listaItens.add(FileModel(file))
         }
 
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listaNomes)
-        listView.adapter = adapter
+        recyclerView.adapter = FileAdapter(listaItens) { item ->
+            if (item.isBackOption) {
+                diretorioAtual = diretorioAtual.parentFile!!
+                carregarArquivos()
+            } else if (item.file.isDirectory) {
+                diretorioAtual = item.file
+                carregarArquivos()
+            } else {
+                Toast.makeText(this, "Arquivo: ${item.file.name}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     override fun onResume() {
@@ -84,7 +94,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Botão Voltar do celular para navegar nas pastas
     override fun onBackPressed() {
         if (diretorioAtual != Environment.getExternalStorageDirectory() && diretorioAtual.parentFile != null) {
             diretorioAtual = diretorioAtual.parentFile!!
