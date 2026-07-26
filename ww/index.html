@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Super Archiver</title>
+
+  <!-- ==================== ESTILOS (CSS) ==================== -->
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: #121212; color: #e0e0e0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    
+    /* Cabeçalho e Caminho */
+    header { background: #1f1f1f; padding: 16px; border-bottom: 1px solid #333; }
+    h1 { font-size: 1.2rem; color: #4CAF50; margin-bottom: 6px; }
+    .path-bar { font-size: 0.8rem; color: #888; word-break: break-all; font-family: monospace; }
+
+    /* Lista de Arquivos */
+    #file-list { flex: 1; overflow-y: auto; list-style: none; }
+    .file-item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #222; cursor: pointer; }
+    .file-item:active { background-color: #2a2a2a; }
+    .icon { font-size: 1.5rem; margin-right: 12px; }
+    .details { flex: 1; }
+    .name { font-size: 0.95rem; font-weight: 500; color: #fff; }
+    .size { font-size: 0.75rem; color: #777; margin-top: 2px; }
+
+    /* Barra Inferior (Ações) */
+    footer { background: #1f1f1f; padding: 12px; display: flex; gap: 8px; justify-content: space-around; border-top: 1px solid #333; }
+    button { background: #4CAF50; color: #fff; border: none; padding: 10px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.85rem; }
+    button:active { opacity: 0.8; }
+    button.secondary { background: #333; color: #ccc; }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== INTERFACE (HTML) ==================== -->
+  <header>
+    <h1>Super Archiver</h1>
+    <div class="path-bar" id="current-path">/storage/emulated/0</div>
+  </header>
+
+  <ul id="file-list">
+    <!-- Os arquivos serão injetados aqui -->
+  </ul>
+
+  <footer>
+    <button class="secondary" id="btn-back">⬅️ Voltar</button>
+    <button id="btn-new-folder">📁 Nova Pasta</button>
+    <button id="btn-zip">📦 Compactar</button>
+  </footer>
+
+  <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
+  <script>
+    let caminhoAtual = '';
+
+    // Pegando elementos da tela
+    const elList = document.getElementById('file-list');
+    const elPath = document.getElementById('current-path');
+    const btnBack = document.getElementById('btn-back');
+
+    // Função principal para carregar o diretório
+    async function carregarPasta(caminho = '') {
+      try {
+        // Pega as APIs do Capacitor injetadas no app
+        const { Filesystem, Directory } = window.Capacitor?.Plugins || {};
+
+        if (!Filesystem) {
+          console.warn('Rodando no navegador sem suporte ao sistema de arquivos nativo.');
+          return;
+        }
+
+        caminhoAtual = caminho;
+        elPath.innerText = `/storage/emulated/0/${caminho}`;
+
+        // Lê a pasta no armazenamento externo (Download, Documentos, etc)
+        const res = await Filesystem.readdir({
+          path: caminho,
+          directory: Directory.External
+        });
+
+        elList.innerHTML = '';
+
+        // Renderiza cada arquivo/pasta
+        res.files.forEach(file => {
+          const li = document.createElement('li');
+          li.className = 'file-item';
+          
+          const isFolder = file.type === 'directory';
+          const icon = isFolder ? '📁' : '📄';
+
+          li.innerHTML = `
+            <span class="icon">${icon}</span>
+            <div class="details">
+              <div class="name">${file.name}</div>
+              <div class="size">${isFolder ? 'Pasta' : (file.size ? file.size + ' B' : 'Arquivo')}</div>
+            </div>
+          `;
+
+          // Clique no item da lista
+          li.onclick = () => {
+            if (isFolder) {
+              const novoCaminho = caminho ? `${caminho}/${file.name}` : file.name;
+              carregarPasta(novoCaminho);
+            }
+          };
+
+          elList.appendChild(li);
+        });
+
+      } catch (err) {
+        console.error('Erro ao ler pasta:', err);
+        alert('Erro ao acessar pasta. Verifique as permissões de armazenamento.');
+      }
+    }
+
+    // Botão Voltar
+    btnBack.onclick = () => {
+      if (!caminhoAtual) return;
+      const partes = caminhoAtual.split('/');
+      partes.pop();
+      carregarPasta(partes.join('/'));
+    };
+
+    // Inicialização ao carregar a página
+    document.addEventListener('DOMContentLoaded', () => {
+      // Pequeno delay para garantir que os plugins nativos inicializaram
+      setTimeout(() => carregarPasta(), 300);
+    });
+  </script>
+</body>
+</html>
