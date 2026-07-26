@@ -50,6 +50,7 @@
   </footer>
 
   <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
+  <!-- ==================== LÓGICA (JAVASCRIPT) ==================== -->
   <script>
     let caminhoAtual = '';
 
@@ -58,10 +59,33 @@
     const elPath = document.getElementById('current-path');
     const btnBack = document.getElementById('btn-back');
 
+    // Função para verificar e pedir permissão de arquivos
+    async function checarPermissoes() {
+      const { Filesystem } = window.Capacitor?.Plugins || {};
+      if (!Filesystem) return true; // Rodando no browser
+
+      try {
+        // Verifica o status atual da permissão
+        let check = await Filesystem.checkPermissions();
+        
+        // Se não tiver concedido, solicita
+        if (check.publicStorage !== 'granted') {
+          let request = await Filesystem.requestPermissions();
+          if (request.publicStorage !== 'granted') {
+            alert('A permissão de armazenamento é obrigatória para usar o gerenciador!');
+            return false;
+          }
+        }
+        return true;
+      } catch (e) {
+        console.error('Erro ao gerenciar permissões:', e);
+        return true; // Tenta prosseguir mesmo assim caso o plugin trate diferente
+      }
+    }
+
     // Função principal para carregar o diretório
     async function carregarPasta(caminho = '') {
       try {
-        // Pega as APIs do Capacitor injetadas no app
         const { Filesystem, Directory } = window.Capacitor?.Plugins || {};
 
         if (!Filesystem) {
@@ -69,10 +93,14 @@
           return;
         }
 
+        // Garante que temos permissão antes de tentar ler
+        const temPermissao = await checarPermissoes();
+        if (!temPermissao) return;
+
         caminhoAtual = caminho;
         elPath.innerText = `/storage/emulated/0/${caminho}`;
 
-        // Lê a pasta no armazenamento externo (Download, Documentos, etc)
+        // Lê a pasta no armazenamento externo
         const res = await Filesystem.readdir({
           path: caminho,
           directory: Directory.External
@@ -109,7 +137,7 @@
 
       } catch (err) {
         console.error('Erro ao ler pasta:', err);
-        alert('Erro ao acessar pasta. Verifique as permissões de armazenamento.');
+        alert('Erro ao acessar pasta. Verifique as permissões.');
       }
     }
 
@@ -123,8 +151,7 @@
 
     // Inicialização ao carregar a página
     document.addEventListener('DOMContentLoaded', () => {
-      // Pequeno delay para garantir que os plugins nativos inicializaram
-      setTimeout(() => carregarPasta(), 300);
+      setTimeout(() => carregarPasta(), 500);
     });
   </script>
 </body>
